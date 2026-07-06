@@ -1,0 +1,36 @@
+name: code-quality
+# Lint gate (oxlint with codehealth's central config) + SonarQube scan feeding the
+# self-hosted server. Runs on free GitHub-hosted runners — Sonar is reachable at
+# sonar.ibotz.fun under its own token auth.
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: fetch central oxlint config (single source of truth = codehealth/configs)
+        run: |
+          curl -fsS -H "Authorization: Bearer ${{ secrets.CODEHEALTH_INGEST_TOKEN }}" \
+            https://codehealth.ibotz.fun/api/config/oxlintrc.json -o .oxlintrc.json
+      - name: oxlint — PR gate (fail on any finding)
+        run: npx --yes oxlint -c .oxlintrc.json --max-warnings 0 .
+
+  sonar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonar.ibotz.fun
+        with:
+          args: >
+            -Dsonar.projectKey=vps-sso
+            -Dsonar.sources=.
+            -Dsonar.exclusions=**/node_modules/**,**/.next/**,**/dist/**,**/*.min.js
