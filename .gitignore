@@ -1,1 +1,3 @@
 .env
+route.ts.bak.*
+verify_sso.sh
