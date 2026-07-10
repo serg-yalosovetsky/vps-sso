@@ -95,6 +95,15 @@ PY
   fi
 fi
 
-# 4) запуск standalone-сервера Next (CWD = .next/standalone, там ассеты)
+# 4) Next standalone НЕ кладёт .next/static (и public) в свою папку, а сервер
+# отдаёт /_next/static/* из своего CWD (.next/standalone). Без линка все чанки =
+# 404 → клиентские компоненты не гидратируются (кнопки мертвы). Self-heal: линк
+# всегда указывает на статику ТЕКУЩЕЙ сборки, переживает любой ребилд.
+ROOT="$PWD"
+mkdir -p .next/standalone/.next
+ln -sfn "$ROOT/.next/static" ".next/standalone/.next/static"
+[ -d "$ROOT/public" ] && ln -sfn "$ROOT/public" ".next/standalone/public"
+
+# 5) запуск standalone-сервера Next (CWD = .next/standalone)
 cd .next/standalone
 exec /root/.nvm/versions/node/v22.22.3/bin/node server.js
