@@ -48,6 +48,8 @@ export CONFIG_STORE_URL="$CFGW"
 set_from JWT_SECRET       "$(fetch_secret VPS_SSO_JWT_SECRET)"       secrets-gateway
 set_from CLERK_SECRET_KEY "$(fetch_secret VPS_SSO_CLERK_SECRET_KEY)" secrets-gateway
 set_from INTERNAL_SECRET  "$(fetch_secret VPS_SSO_INTERNAL_SECRET)"  secrets-gateway
+# Plan B: реестр opaque service-token'ов в mesh-postgres (схема vps_sso).
+set_from VPS_SSO_DB_URL   "$(fetch_secret VPS_SSO_DB_URL)"           secrets-gateway
 
 # 3) несекретный конфиг + карта доступов — из config-store
 set_from SSO_ACCESS             "$(fetch_config sso_access)"             config-store

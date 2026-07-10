@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyToken, COOKIE_NAME } from '@/lib/jwt'
+import { isServiceToken, verifyServiceToken } from '@/lib/tokens'
 
 // ---------------------------------------------------------------------------
 // Per-service access map: { "email": ["host1", "host2"] } or ["*"] for all.
@@ -95,12 +96,11 @@ async function isAllowed(email: string, host: string): Promise<boolean> {
   return allow.size === 0 || allow.has(email)
 }
 
-// Machine token check. A machine token is a JWT signed with the same secret but
+// Machine token check (LEGACY JWT-svc path, kept for dual-accept during the
+// Plan B migration). A machine token is a JWT signed with the same secret but
 // carrying a `svc` claim (string or string[]) naming the service host(s) it may
-// reach. It is intrinsically service-scoped: it bypasses the human email→hosts
-// map, and a leaked token only ever works for its named service(s). Machines
-// deliver it as the sso_token cookie (nginx forwards Cookie, not Authorization).
-// Returns the matched host set, or null if this is not a machine token.
+// reach. Machines deliver it as the sso_token cookie (nginx forwards Cookie,
+// not Authorization). Returns the matched host set, or null if not a machine token.
 function machineServices(payload: Record<string, unknown>): Set<string> | null {
   const svc = payload.svc
   if (svc === undefined || svc === null) return null
@@ -111,12 +111,15 @@ function machineServices(payload: Record<string, unknown>): Set<string> | null {
 // Called by nginx auth_request on every request to protected services.
 // Returns 200 + user headers on success, 401 (no/invalid token), 403 (not allowed here).
 export async function GET(req: NextRequest) {
+  // INTERNAL_SECRET is now MANDATORY: it is the only proof the caller is our
+  // nginx (which injects X-Internal-Secret via the shared snippet). Without it
+  // we cannot trust X-Forwarded-Host, so we fail CLOSED rather than open.
   const internalSecret = process.env.INTERNAL_SECRET
-  if (internalSecret) {
-    const provided = req.headers.get('x-internal-secret')
-    if (provided !== internalSecret) {
-      return new NextResponse('Forbidden', { status: 403 })
-    }
+  if (!internalSecret) {
+    return new NextResponse('SSO misconfigured', { status: 500 })
+  }
+  if (req.headers.get('x-internal-secret') !== internalSecret) {
+    return new NextResponse('Forbidden', { status: 403 })
   }
 
   const cookie = req.cookies.get(COOKIE_NAME)?.value
@@ -128,10 +131,38 @@ export async function GET(req: NextRequest) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
 
+  // nginx forwards the target service host as X-Forwarded-Host.
+  const host = (req.headers.get('x-forwarded-host') ?? '').toLowerCase()
+
+  // ---- Opaque service-token path (Plan B) --------------------------------
+  // svc_<project>_<rand>, validated against PG. On DB failure we fail CLOSED
+  // (503) — we never silently downgrade to another auth path.
+  if (isServiceToken(token)) {
+    let res
+    try {
+      res = await verifyServiceToken(token, host)
+    } catch {
+      return new NextResponse('Service Unavailable', { status: 503 })
+    }
+    if (!res.ok) {
+      return new NextResponse(res.status === 403 ? 'Forbidden' : 'Unauthorized', {
+        status: res.status,
+      })
+    }
+    return new NextResponse('OK', {
+      status: 200,
+      headers: {
+        'X-Auth-User': res.principal,
+        'X-Auth-Email': '',
+        'X-Auth-Name': res.principal,
+        'X-Sso-Project': res.principal,
+      },
+    })
+  }
+
+  // ---- Legacy JWT paths (human cookie + machine svc-claim) ---------------
   try {
     const payload = await verifyToken(token)
-    // nginx forwards the target service host as X-Forwarded-Host.
-    const host = (req.headers.get('x-forwarded-host') ?? '').toLowerCase()
 
     // Machine token path: scoped by the `svc` claim, independent of the email map.
     const services = machineServices(payload as unknown as Record<string, unknown>)

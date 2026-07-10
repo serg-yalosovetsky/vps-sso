@@ -6,3 +6,4 @@ next-env.d.ts
 *.bak.*
 *.bak-*
 verify_sso.sh
+test-p2.sh
