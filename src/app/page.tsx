@@ -1,5 +1,8 @@
 import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
+import { readAccess, isAdmin } from '@/lib/adminAccess'
+
+export const dynamic = 'force-dynamic'
 
 export default async function Home() {
   const user = await currentUser()
@@ -10,6 +13,14 @@ export default async function Home() {
 
   const email = user.emailAddresses[0]?.emailAddress ?? ''
   const name = [user.firstName, user.lastName].filter(Boolean).join(' ')
+
+  // Show the Admin link only to admins (best-effort; the /admin page re-checks).
+  let admin = false
+  try {
+    admin = isAdmin(email, await readAccess())
+  } catch {
+    admin = false
+  }
 
   return (
     <main style={{ maxWidth: 600, margin: '80px auto', padding: '0 24px' }}>
@@ -39,6 +50,29 @@ export default async function Home() {
           Получить токен (30 дней)
         </a>
       </section>
+
+      {admin && (
+        <section style={{ background: '#f5f5f5', borderRadius: 8, padding: 24, marginBottom: 24 }}>
+          <h2 style={{ fontSize: 16, marginTop: 0 }}>Администрирование</h2>
+          <p style={{ fontSize: 14, color: '#666', marginBottom: 12 }}>
+            Управление картой доступа <code>email → хосты</code>.
+          </p>
+          <a
+            href="/admin"
+            style={{
+              display: 'inline-block',
+              padding: '8px 16px',
+              background: '#000',
+              color: '#fff',
+              borderRadius: 6,
+              textDecoration: 'none',
+              fontSize: 14,
+            }}
+          >
+            SSO Access Admin
+          </a>
+        </section>
+      )}
 
       <a
         href="/api/auth/logout"

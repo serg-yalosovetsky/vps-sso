@@ -183,6 +183,9 @@ export async function GET(req: NextRequest) {
     // Machine token path: scoped by the `svc` claim, independent of the email map.
     const services = machineServices(payload as unknown as Record<string, unknown>)
     if (services) {
+      // DEPRECATED legacy machine-JWT (svc-claim) path — instrumented to confirm
+      // it is unused before removal (Plan B phase 6). journald only.
+      console.warn(`[legacy-machine-jwt] host=${host} sub=${String((payload as Record<string, unknown>).sub ?? '')}`)
       if (!services.has(host)) {
         return new NextResponse('Forbidden', { status: 403 })
       }
