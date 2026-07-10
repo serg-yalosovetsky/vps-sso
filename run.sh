@@ -57,6 +57,44 @@ set_from ALLOWED_REDIRECT_HOSTS "$(fetch_config sso_allowed_redirects)" config-s
 set_from COOKIE_DOMAIN          "$(fetch_config sso_cookie_domain)"     config-store
 set_from SSO_HOST               "$(fetch_config sso_host)"              config-store
 
+# 3.5) Plan B фаза 3: per-consumer ключи подписи assertion'ов.
+# config-store defaults/sso_assertion_consumers = { "<host>": "<secretName>" };
+# значения ключей лежат в secrets-gateway под этими именами. Собираем
+# SSO_ASSERT_KEYS = { "<host>": "<keyValue>" }. Хост без ключа → assertion не
+# чеканится (сервисы, не потребляющие assertion, не затрагиваются).
+CONSUMERS="$(fetch_config sso_assertion_consumers)"
+if [ -n "$CONSUMERS" ] && [ -n "$MT" ]; then
+  ASSERT_KEYS="$(SECGW="$SECGW" MT="$MT" python3 - "$CONSUMERS" <<'PY' 2>/dev/null || true
+import sys, json, os, urllib.request
+try:
+    consumers = json.loads(sys.argv[1])
+except Exception:
+    consumers = {}
+secgw = os.environ["SECGW"]; mt = os.environ["MT"]
+out = {}
+for host, secname in (consumers.items() if isinstance(consumers, dict) else []):
+    try:
+        req = urllib.request.Request(
+            f"{secgw}/secrets/{secname}",
+            headers={"Authorization": f"Bearer {mt}"},
+        )
+        val = json.load(urllib.request.urlopen(req, timeout=8)).get("value")
+        if val:
+            out[str(host).strip().lower()] = val
+    except Exception:
+        pass
+print(json.dumps(out))
+PY
+)"
+  # Экспортируем только если реально собрали хотя бы один ключ ({} = пусто-эквивалент).
+  if [ -n "$ASSERT_KEYS" ] && [ "$ASSERT_KEYS" != "{}" ]; then
+    export SSO_ASSERT_KEYS="$ASSERT_KEYS"
+    echo "sso-cfg: SSO_ASSERT_KEYS <- secrets-gateway×config-store" >&2
+  else
+    echo "sso-cfg: SSO_ASSERT_KEYS пуст (нет потребителей/ключей)" >&2
+  fi
+fi
+
 # 4) запуск standalone-сервера Next (CWD = .next/standalone, там ассеты)
 cd .next/standalone
 exec /root/.nvm/versions/node/v22.22.3/bin/node server.js

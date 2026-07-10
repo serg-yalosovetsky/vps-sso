@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { verifyToken, COOKIE_NAME } from '@/lib/jwt'
 import { isServiceToken, verifyServiceToken } from '@/lib/tokens'
+import { mintAssertion, ASSERTION_HEADER, type AssertionClaims } from '@/lib/assertion'
 
 // ---------------------------------------------------------------------------
 // Per-service access map: { "email": ["host1", "host2"] } or ["*"] for all.
@@ -108,6 +109,20 @@ function machineServices(payload: Record<string, unknown>): Set<string> | null {
   return new Set(list.map((s) => String(s).trim().toLowerCase()).filter(Boolean))
 }
 
+// Build the 200 response. For consumer hosts we additionally mint a short-lived
+// signed assertion (X-Sso-Assertion) that proves this decision cryptographically
+// — nginx forwards it to the backend, which can verify it OFFLINE. Non-consumer
+// hosts get no assertion header (mintAssertion returns null) and are unchanged.
+async function success(
+  host: string,
+  headers: Record<string, string>,
+  claims: AssertionClaims,
+): Promise<NextResponse> {
+  const assertion = await mintAssertion(host, claims)
+  if (assertion) headers[ASSERTION_HEADER] = assertion
+  return new NextResponse('OK', { status: 200, headers })
+}
+
 // Called by nginx auth_request on every request to protected services.
 // Returns 200 + user headers on success, 401 (no/invalid token), 403 (not allowed here).
 export async function GET(req: NextRequest) {
@@ -149,15 +164,16 @@ export async function GET(req: NextRequest) {
         status: res.status,
       })
     }
-    return new NextResponse('OK', {
-      status: 200,
-      headers: {
+    return success(
+      host,
+      {
         'X-Auth-User': res.principal,
         'X-Auth-Email': '',
         'X-Auth-Name': res.principal,
         'X-Sso-Project': res.principal,
       },
-    })
+      { principal: res.principal, via: 'service' },
+    )
   }
 
   // ---- Legacy JWT paths (human cookie + machine svc-claim) ---------------
@@ -170,14 +186,16 @@ export async function GET(req: NextRequest) {
       if (!services.has(host)) {
         return new NextResponse('Forbidden', { status: 403 })
       }
-      return new NextResponse('OK', {
-        status: 200,
-        headers: {
-          'X-Auth-User': String(payload.sub ?? 'machine'),
+      const principal = String(payload.sub ?? 'machine')
+      return success(
+        host,
+        {
+          'X-Auth-User': principal,
           'X-Auth-Email': String(payload.email ?? ''),
           'X-Auth-Name': String(payload.name ?? 'machine'),
         },
-      })
+        { principal, via: 'machine', email: String(payload.email ?? '') || undefined },
+      )
     }
 
     // Human token path: email → allowed hosts (live from config-store).
@@ -186,14 +204,15 @@ export async function GET(req: NextRequest) {
       return new NextResponse('Forbidden', { status: 403 })
     }
 
-    return new NextResponse('OK', {
-      status: 200,
-      headers: {
+    return success(
+      host,
+      {
         'X-Auth-User': payload.sub,
         'X-Auth-Email': payload.email,
         'X-Auth-Name': payload.name,
       },
-    })
+      { principal: email || payload.sub, via: 'human', email: payload.email || undefined },
+    )
   } catch {
     return new NextResponse('Unauthorized', { status: 401 })
   }
