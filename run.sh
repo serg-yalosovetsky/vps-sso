@@ -42,6 +42,7 @@ set_from() {  # $1=VAR $2=value $3=source — не перезаписываем 
 
 # 1) токен config-store — из secrets-gateway (бутстрап по MESH_TOKEN)
 CST=$(fetch_secret CONFIG_STORE_TOKEN); [ -n "$CST" ] && export CONFIG_STORE_TOKEN="$CST"
+export CONFIG_STORE_URL="$CFGW"
 
 # 2) секреты приложения — из secrets-gateway (в security store — токены приложений)
 set_from JWT_SECRET       "$(fetch_secret VPS_SSO_JWT_SECRET)"       secrets-gateway

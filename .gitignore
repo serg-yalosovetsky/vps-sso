@@ -1,3 +1,8 @@
 .env
-route.ts.bak.*
+.env.bak*
+.next/
+node_modules/
+next-env.d.ts
+*.bak.*
+*.bak-*
 verify_sso.sh
