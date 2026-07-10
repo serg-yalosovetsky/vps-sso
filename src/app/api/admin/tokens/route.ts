@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { readAccess, isAdmin } from '@/lib/adminAccess'
 import { listTokens, mintToken } from '@/lib/adminTokens'
+import { sameOrigin } from '@/lib/csrf'
 
 // Admin token registry API. Same gate as /api/admin/access: a valid Clerk
 // session whose email is an SSO admin. Browser calls carry the Clerk cookie.
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 async function requireAdmin(): Promise<{ email: string } | NextResponse> {
   const user = await currentUser()
-  const email = (user?.emailAddresses[0]?.emailAddress ?? '').toLowerCase()
+  const email = (user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? '').toLowerCase()
   if (!email) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const access = await readAccess()
   if (!isAdmin(email, access)) {
@@ -33,6 +34,10 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const gate = await requireAdmin()
   if (gate instanceof NextResponse) return gate
+
+  if (!sameOrigin(req)) {
+    return NextResponse.json({ error: 'cross-site rejected' }, { status: 403 })
+  }
 
   let body: Record<string, unknown>
   try {

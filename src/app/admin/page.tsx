@@ -13,7 +13,7 @@ const wrap = { maxWidth: 980, margin: '64px auto', padding: '0 24px' } as const
 export default async function AdminPage() {
   const user = await currentUser()
   if (!user) redirect('/sign-in')
-  const email = (user.emailAddresses[0]?.emailAddress ?? '').toLowerCase()
+  const email = (user.primaryEmailAddress?.emailAddress ?? user.emailAddresses[0]?.emailAddress ?? '').toLowerCase()
 
   let access: Record<string, string[]> = {}
   let err = ''

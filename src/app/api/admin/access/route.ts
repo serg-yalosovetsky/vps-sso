@@ -7,18 +7,23 @@ import {
   adminEmails,
   type AccessMap,
 } from '@/lib/adminAccess'
+import { sameOrigin } from '@/lib/csrf'
 
 // POST /api/admin/access — replace the sso_access map. Admin-only (Clerk session
 // + admin check). Refuses to write a map that would strip the caller's own admin
 // access (lockout guard).
 export async function POST(req: NextRequest) {
   const user = await currentUser()
-  const email = (user?.emailAddresses[0]?.emailAddress ?? '').toLowerCase()
+  const email = (user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? '').toLowerCase()
   if (!email) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const current = await readAccess()
   if (!isAdmin(email, current)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  if (!sameOrigin(req)) {
+    return NextResponse.json({ error: 'cross-site rejected' }, { status: 403 })
   }
 
   let body: unknown

@@ -87,7 +87,13 @@ function parseExpiry(s: string | undefined): Date | null {
   if (!s || s === 'never') return null
   const m = /^(\d+)([smhdwy])$/.exec(s)
   if (!m) throw new Error(`неверный expires '${s}' (напр. 90d, 12h, 1y, never)`)
-  return new Date(Date.now() + Number(m[1]) * DUR[m[2]])
+  // Cap the horizon so a huge quantity (\d+ is unbounded) can't overflow to an
+  // Invalid Date and poison the row; 'never' is the way to ask for permanent.
+  const MAX_MS = 100 * DUR.y
+  const ms = Math.min(Number(m[1]) * DUR[m[2]], MAX_MS)
+  if (!Number.isFinite(ms) || ms <= 0)
+    throw new Error(`неверный expires '${s}': вне диапазона`)
+  return new Date(Date.now() + ms)
 }
 
 export type MintInput = {

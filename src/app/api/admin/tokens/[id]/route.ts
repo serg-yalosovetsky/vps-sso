@@ -2,16 +2,20 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { currentUser } from '@clerk/nextjs/server'
 import { readAccess, isAdmin } from '@/lib/adminAccess'
 import { revokeToken } from '@/lib/adminTokens'
+import { sameOrigin } from '@/lib/csrf'
 
 export const dynamic = 'force-dynamic'
 
 // DELETE /api/admin/tokens/:id — revoke a token (active -> false). Admin-only.
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  if (!sameOrigin(req)) {
+    return NextResponse.json({ error: 'cross-site rejected' }, { status: 403 })
+  }
   const user = await currentUser()
-  const email = (user?.emailAddresses[0]?.emailAddress ?? '').toLowerCase()
+  const email = (user?.primaryEmailAddress?.emailAddress ?? user?.emailAddresses[0]?.emailAddress ?? '').toLowerCase()
   if (!email) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
   const access = await readAccess()
   if (!isAdmin(email, access)) {

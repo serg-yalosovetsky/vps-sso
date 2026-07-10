@@ -35,9 +35,14 @@ function rateLimited(ip: string): boolean {
 }
 
 function clientIp(req: NextRequest): string {
+  // Prefer X-Real-IP: our nginx (sso.ibotz.fun) sets it to $remote_addr, so it
+  // can't be spoofed to rotate around the limiter. X-Forwarded-For is
+  // client-supplied (leftmost entry is attacker-controlled) — last resort only.
+  const real = req.headers.get('x-real-ip')
+  if (real) return real.trim()
   const xff = req.headers.get('x-forwarded-for')
   if (xff) return xff.split(',')[0].trim()
-  return req.headers.get('x-real-ip') ?? 'unknown'
+  return 'unknown'
 }
 
 export async function POST(req: NextRequest) {
