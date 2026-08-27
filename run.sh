@@ -95,6 +95,52 @@ PY
   fi
 fi
 
+# 3.6) Пер-сервисные X-Internal-Secret. config-store defaults/sso_internal_secrets
+# = { "<host>": "<secretName>" }; значения — в secrets-gateway под этими именами.
+# Собираем SSO_INTERNAL_SECRETS = { "<host>": "<value>" }: у каждого сайта свой
+# секрет, годный только для него. Форма намеренно та же, что у SSO_ASSERT_KEYS.
+# Пусто НЕ экспортируем: при недоступном шлюзе лучше остаться на legacy-секрете,
+# чем поднять SSO, который не узнаёт ни один сайт.
+INTERNAL_MAP="$(fetch_config sso_internal_secrets)"
+if [ -n "$INTERNAL_MAP" ] && [ -n "$MT" ]; then
+  INTERNAL_SECRETS="$(SECGW="$SECGW" MT="$MT" python3 - "$INTERNAL_MAP" <<'PY' 2>/dev/null || true
+import sys, json, os, urllib.request
+raw = sys.argv[1]
+try:
+    mapping = json.loads(raw)
+except Exception:
+    # config-store отдаёт значение ОБЪЕКТОМ, а _val() печатает python-repr с ОДИНАРНЫМИ
+    # кавычками — это не JSON. Молча получить пустую карту здесь опасно:
+    # после отключения legacy это означало бы 403 на ВСЕХ сайтах.
+    try:
+        import ast
+        mapping = ast.literal_eval(raw)
+    except Exception:
+        mapping = {}
+secgw = os.environ["SECGW"]; mt = os.environ["MT"]
+out = {}
+for host, secname in (mapping.items() if isinstance(mapping, dict) else []):
+    try:
+        req = urllib.request.Request(
+            f"{secgw}/secrets/{secname}",
+            headers={"Authorization": f"Bearer {mt}"},
+        )
+        val = json.load(urllib.request.urlopen(req, timeout=8)).get("value")
+        if val:
+            out[str(host).strip().lower()] = val
+    except Exception:
+        pass
+print(json.dumps(out))
+PY
+)"
+  if [ -n "$INTERNAL_SECRETS" ] && [ "$INTERNAL_SECRETS" != "{}" ]; then
+    export SSO_INTERNAL_SECRETS="$INTERNAL_SECRETS"
+    echo "sso-cfg: SSO_INTERNAL_SECRETS <- secrets-gateway×config-store ($(printf %s "$INTERNAL_SECRETS" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))') хостов)" >&2
+  else
+    echo "sso-cfg: SSO_INTERNAL_SECRETS пуст — остаёмся на legacy INTERNAL_SECRET" >&2
+  fi
+fi
+
 # 4) Next standalone НЕ кладёт .next/static (и public) в свою папку, а сервер
 # отдаёт /_next/static/* из своего CWD (.next/standalone). Без линка все чанки =
 # 404 → клиентские компоненты не гидратируются (кнопки мертвы). Self-heal: линк

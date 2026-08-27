@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { verifyToken, COOKIE_NAME } from '@/lib/jwt'
 import { isServiceToken, verifyServiceToken } from '@/lib/tokens'
 import { mintAssertion, ASSERTION_HEADER, type AssertionClaims } from '@/lib/assertion'
+import { checkInternalSecret, normalizeHost } from '@/lib/internalSecret'
 
 // ---------------------------------------------------------------------------
 // Per-service access map: { "email": ["host1", "host2"] } or ["*"] for all.
@@ -126,15 +127,24 @@ async function success(
 // Called by nginx auth_request on every request to protected services.
 // Returns 200 + user headers on success, 401 (no/invalid token), 403 (not allowed here).
 export async function GET(req: NextRequest) {
-  // INTERNAL_SECRET is now MANDATORY: it is the only proof the caller is our
-  // nginx (which injects X-Internal-Secret via the shared snippet). Without it
-  // we cannot trust X-Forwarded-Host, so we fail CLOSED rather than open.
-  const internalSecret = process.env.INTERNAL_SECRET
-  if (!internalSecret) {
+  // X-Internal-Secret is the only proof the caller is our nginx, and it is now
+  // PER-SERVICE: the expected value is looked up by the host being CLAIMED, so
+  // one service's secret presented as another host does not authenticate. This
+  // is what makes X-Forwarded-Host (and with it the access map) trustworthy.
+  // We fail CLOSED in every branch.
+  const host = normalizeHost(req.headers.get('x-forwarded-host'))
+  const verdict = checkInternalSecret(host, req.headers.get('x-internal-secret'))
+  if (verdict === 'misconfigured') {
     return new NextResponse('SSO misconfigured', { status: 500 })
   }
-  if (req.headers.get('x-internal-secret') !== internalSecret) {
+  if (verdict === 'reject') {
     return new NextResponse('Forbidden', { status: 403 })
+  }
+  if (verdict === 'legacy') {
+    // TRANSITIONAL: this vhost still sends the old shared secret. Instrumented
+    // so the cutover (SSO_INTERNAL_LEGACY=off) can be proven safe from logs
+    // instead of guessed. journald only — never the value.
+    console.warn(`[legacy-internal-secret] host=${host}`)
   }
 
   const cookie = req.cookies.get(COOKIE_NAME)?.value
@@ -145,9 +155,6 @@ export async function GET(req: NextRequest) {
   if (!token) {
     return new NextResponse('Unauthorized', { status: 401 })
   }
-
-  // nginx forwards the target service host as X-Forwarded-Host.
-  const host = (req.headers.get('x-forwarded-host') ?? '').toLowerCase()
 
   // ---- Opaque service-token path (Plan B) --------------------------------
   // svc_<project>_<rand>, validated against PG. On DB failure we fail CLOSED
