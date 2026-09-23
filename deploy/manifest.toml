@@ -15,7 +15,7 @@ repo    = "https://github.com/serg-yalosovetsky/vps-sso"
 ring = 1
 
 [hosts.vps]
-path = "/root/vps-sso"
+path = "/opt/vps-sso"
 unit = "vps-sso.service"
 
 [env]
@@ -33,7 +33,7 @@ secret_names = []
 # Путь абсолютный: PATH приёмника не содержит nvm, а node тут поставлен им.
 # Проверено пробным прогоном 22.09.2026: сборка проходит за 121 секунду,
 # BUILD_ID меняется, сервис при этом продолжает работать на прежнем процессе.
-cmd = ["/root/.nvm/versions/node/v22.22.3/bin/npm", "run", "build"]
+cmd = ["/usr/local/lib/nodejs/v22.22.3/bin/npm", "run", "build"]
 
 [activate]
 restart = ["vps-sso.service"]

@@ -11,16 +11,16 @@ set -a; . ./.env 2>/dev/null || true; set +a
 SECGW="${SECGW_URL:-http://100.66.108.118:8783}"
 CFGW="${CFGW_URL:-http://100.66.108.118:8782}"
 
-# Bootstrap bearer: MESH_TOKEN из BWS (как secrets-gateway/alice-relay). Ни BWS-токен,
-# ни MESH_TOKEN не печатаются. Если BWS недоступен — падаем на MESH_TOKEN из .env (если есть).
-BWS_ENV="${BWS_ENV_FILE:-/root/.hermes/bitwarden-sm.env}"
-BWS_PROJECT="${BWS_PROJECT:-8de999c8-5765-4de5-92a5-b45e001d0955}"
-if [ -z "${MESH_TOKEN:-}" ] && [ -f "$BWS_ENV" ]; then
-  MESH_TOKEN="$(bash -c "set -a; . '$BWS_ENV'; set +a; /root/.hermes/bin/bws secret list '$BWS_PROJECT' -o json" 2>/dev/null \
-    | python3 -c 'import sys,json;d=json.load(sys.stdin);print({s["key"]:s["value"] for s in d}.get("MESH_TOKEN",""))' 2>/dev/null || true)"
+# serg/tasks#1108: bearer шлюза — ЛИЧНЫЙ токен vps-sso (LoadCredential=secgw-token; scope VPS_SSO_*,
+# INFGW_ASSERT_KEY, CONFIG_STORE_TOKEN). Раньше здесь был root-шим Bitwarden (bws + bitwarden-sm.env)
+# ради общего MESH_TOKEN с доступом ко всему хранилищу. Отката на него нет намеренно.
+MT=""
+if [ -n "${CREDENTIALS_DIRECTORY:-}" ] && [ -r "$CREDENTIALS_DIRECTORY/secgw-token" ]; then
+  MT="$(tr -d '\r\n ' < "$CREDENTIALS_DIRECTORY/secgw-token")"
+  echo "sso-cfg: личный токен secgw получен (LoadCredential)" >&2
+else
+  echo "sso-cfg: личный токен secgw недоступен — только .env-фолбэк" >&2
 fi
-MT="${MESH_TOKEN:-}"
-[ -n "$MT" ] && echo "sso-cfg: MESH_TOKEN bootstrapped (BWS/.env)" >&2 || echo "sso-cfg: MESH_TOKEN отсутствует — только .env-фолбэк" >&2
 
 _val() { python3 -c "import sys,json;print(json.load(sys.stdin).get('value') or '')"; }
 
@@ -145,11 +145,7 @@ fi
 # отдаёт /_next/static/* из своего CWD (.next/standalone). Без линка все чанки =
 # 404 → клиентские компоненты не гидратируются (кнопки мертвы). Self-heal: линк
 # всегда указывает на статику ТЕКУЩЕЙ сборки, переживает любой ребилд.
-ROOT="$PWD"
-mkdir -p .next/standalone/.next
-ln -sfn "$ROOT/.next/static" ".next/standalone/.next/static"
-[ -d "$ROOT/public" ] && ln -sfn "$ROOT/public" ".next/standalone/public"
-
-# 5) запуск standalone-сервера Next (CWD = .next/standalone)
+# Симлинки .next/standalone/{.next/static,public} делает deploy/prepare.sh (ExecStartPre=+, root):
+# под непривилегированным пользователем дерево только для чтения.
 cd .next/standalone
-exec /root/.nvm/versions/node/v22.22.3/bin/node server.js
+exec /usr/local/lib/nodejs/v22.22.3/bin/node server.js
