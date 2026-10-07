@@ -1,0 +1,13 @@
+# Фиктивные значения для CI и тестов, не секреты: сборке и тестам нужно только их наличие.
+# Проверены вручную перед публикацией репозитория; подавление разрешено владельцем, serg/tasks#1585.
+# Только эти три заглушки, больше ничего: ci.yml (JWT_SECRET, NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY)
+# и tests/jwt-csrf.test.ts (JWT_SECRET).
+#
+# История (gitleaks git): commit:file:rule:line
+a6be0f2f4c98475561bf45cc98aebedd008a90e7:tests/jwt-csrf.test.ts:generic-api-key:37
+a6be0f2f4c98475561bf45cc98aebedd008a90e7:.github/workflows/ci.yml:generic-api-key:29
+a6be0f2f4c98475561bf45cc98aebedd008a90e7:.github/workflows/ci.yml:generic-api-key:31
+# Рабочее дерево (gitleaks dir): file:rule:line
+.github/workflows/ci.yml:generic-api-key:29
+.github/workflows/ci.yml:generic-api-key:31
+tests/jwt-csrf.test.ts:generic-api-key:47

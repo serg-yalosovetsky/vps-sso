@@ -44,7 +44,7 @@ describe('jwt', () => {
 
   it('подписанный токен проверяется, чужой подписью — нет', async () => {
     vi.resetModules()
-    vi.stubEnv('JWT_SECRET', 'test-secret-0123456789abcdef0123456789')
+    vi.stubEnv('JWT_SECRET', 'test-secret-0123456789abcdef0123456789') // gitleaks:allow — тестовое значение
     vi.stubEnv('COOKIE_DOMAIN', 'example.com')
     const { signToken, verifyToken, cookieDomain } = await import('../src/lib/jwt')
     const t = await signToken({ sub: 'u1', email: 'u1@example.com', name: 'U One' })

@@ -26,9 +26,9 @@ jobs:
         # Значения фиктивные: сборке нужно только их наличие (src/lib/jwt.ts падает
         # при импорте без JWT_SECRET). Настоящие ключи в CI не попадают.
         env:
-          JWT_SECRET: ci-dummy-0123456789abcdef0123456789abcdef
+          JWT_SECRET: ci-dummy-0123456789abcdef0123456789abcdef  # gitleaks:allow — фиктивное значение для сборки
           COOKIE_DOMAIN: example.com
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k  # gitleaks:allow — фиктивный ключ для сборки
           CLERK_SECRET_KEY: sk_test_dummy
         run: npm run build
 
