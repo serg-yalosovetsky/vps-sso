@@ -1,0 +1,11 @@
+{
+  // Типы тестов проверяются отдельно: `next build` смотрит в tsconfig.json, а на узле
+  // раскатки meshdeploy собирает без devDependencies в node_modules (npm ci там не
+  // запускается) — импорт vitest валил сборку прода (07.10.2026, serg/tasks#1585).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "incremental": false
+  },
+  "include": ["tests/**/*.ts", "vitest.config.ts", "src/**/*.ts", "src/**/*.tsx", "next-env.d.ts"],
+  "exclude": ["node_modules"]
+}

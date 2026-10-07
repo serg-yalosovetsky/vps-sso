@@ -25,11 +25,21 @@ describe('sameOrigin', () => {
 })
 
 describe('jwt', () => {
-  it('без JWT_SECRET модуль не загружается', async () => {
+  it('модуль импортируется без секретов — next build не должен их требовать', async () => {
     vi.resetModules()
     vi.stubEnv('JWT_SECRET', '')
-    vi.stubEnv('COOKIE_DOMAIN', 'example.com')
-    await expect(import('../src/lib/jwt')).rejects.toThrow('JWT_SECRET')
+    vi.stubEnv('COOKIE_DOMAIN', '')
+    await expect(import('../src/lib/jwt')).resolves.toBeDefined()
+  })
+
+  it('без JWT_SECRET подпись и проверка отказывают (fail-closed)', async () => {
+    vi.resetModules()
+    vi.stubEnv('JWT_SECRET', '')
+    vi.stubEnv('COOKIE_DOMAIN', '')
+    const { signToken, verifyToken, cookieDomain } = await import('../src/lib/jwt')
+    await expect(signToken({ sub: 'u1', email: 'u1@example.com', name: 'U' })).rejects.toThrow('JWT_SECRET')
+    await expect(verifyToken('a.b.c')).rejects.toThrow('JWT_SECRET')
+    expect(() => cookieDomain()).toThrow('COOKIE_DOMAIN')
   })
 
   it('подписанный токен проверяется, чужой подписью — нет', async () => {
