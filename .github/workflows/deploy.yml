@@ -74,13 +74,17 @@ jobs:
 
   deploy:
     needs: gate
-    # В форке нет ни self-hosted раннера mesh-vps, ни приёмника meshdeploy: без
-    # этого условия job вечно висел бы в очереди. В форке раскатка пропускается.
+    # В форке и в зеркале на Forgejo нет ни self-hosted раннера mesh-vps, ни
+    # приёмника meshdeploy: там раскатка пропускается.
     if: github.repository == 'serg-yalosovetsky/vps-sso'
     # Метка mesh-vps — это раннер на VPS, поднятый специально для этого
     # репозитория. Раннер уровня организации на личном аккаунте невозможен,
     # поэтому у каждого сервиса он свой.
-    runs-on: [self-hosted, mesh-vps]
+    # Метка вычисляется из того же условия, что и `if`. GitHub смотрит на `if` до
+    # подбора раннера, а Forgejo — после: с жёсткой меткой mesh-vps job в зеркале
+    # вечно висел в waiting (поймано 07.10.2026). Вне основного репо job попадает
+    # на обычный раннер и там пропускается по `if`.
+    runs-on: ${{ github.repository == 'serg-yalosovetsky/vps-sso' && fromJSON('["self-hosted","mesh-vps"]') || 'ubuntu-latest' }}
     steps:
       - name: Запросить раскатку у узла
         env:
