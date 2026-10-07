@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { readAccess, isAdmin } from '@/lib/adminAccess'
@@ -31,7 +32,7 @@ export default async function AdminPage() {
           {email || 'аноним'} не входит в администраторов SSO. Управлять доступом
           могут только держатели <code>*</code> (или список <code>SSO_ADMIN_EMAILS</code>).
         </p>
-        <a href="/" style={{ color: '#888', fontSize: 14 }}>← Дашборд</a>
+        <Link href="/" style={{ color: '#888', fontSize: 14 }}>← Дашборд</Link>
       </main>
     )
   }
@@ -77,7 +78,7 @@ export default async function AdminPage() {
       </section>
 
       <div style={{ marginTop: 32 }}>
-        <a href="/" style={{ color: '#888', fontSize: 14 }}>← Дашборд</a>
+        <Link href="/" style={{ color: '#888', fontSize: 14 }}>← Дашборд</Link>
       </div>
     </main>
   )

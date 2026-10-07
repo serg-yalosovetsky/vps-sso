@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { currentUser } from '@clerk/nextjs/server'
 import { redirect } from 'next/navigation'
 import { readAccess, isAdmin } from '@/lib/adminAccess'
@@ -35,6 +36,9 @@ export default async function Home() {
           Используйте этот токен для доступа из скриптов и CLI через заголовок{' '}
           <code>Authorization: Bearer &lt;token&gt;</code>.
         </p>
+        {/* Обычный <a>, а не <Link>: это route handler, а не страница. <Link> в проде
+            предзагружает адрес, и для logout такая предзагрузка разлогинила бы. */}
+        {/* oxlint-disable-next-line nextjs/no-html-link-for-pages */}
         <a
           href="/api/auth/token"
           style={{
@@ -57,7 +61,7 @@ export default async function Home() {
           <p style={{ fontSize: 14, color: '#666', marginBottom: 12 }}>
             Управление картой доступа <code>email → хосты</code>.
           </p>
-          <a
+          <Link
             href="/admin"
             style={{
               display: 'inline-block',
@@ -70,10 +74,13 @@ export default async function Home() {
             }}
           >
             SSO Access Admin
-          </a>
+          </Link>
         </section>
       )}
 
+      {/* Обычный <a>, а не <Link>: это route handler, а не страница. <Link> в проде
+          предзагружает адрес, и для logout такая предзагрузка разлогинила бы. */}
+      {/* oxlint-disable-next-line nextjs/no-html-link-for-pages */}
       <a
         href="/api/auth/logout"
         style={{ color: '#888', fontSize: 14, textDecoration: 'none' }}

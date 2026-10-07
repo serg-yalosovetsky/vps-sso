@@ -56,8 +56,27 @@ jobs:
             bash -n "$f"
           done
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Типы, линт и тесты (блокирующие)
+        # Те же проверки, что в ci.yml. Дублируются здесь, потому что раскатка
+        # ждёт только этот job: без них в прод уехал бы код с красными тестами.
+        # Стоят ПОСЛЕ compileall: тот обходит весь каталог, а в node_modules
+        # лежат чужие .py (node-gyp), на которых компиляция могла бы упасть.
+        run: |
+          npm ci
+          npm run typecheck
+          npx oxlint -c .oxlintrc.json --format=github .
+          npm test
+
   deploy:
     needs: gate
+    # В форке нет ни self-hosted раннера mesh-vps, ни приёмника meshdeploy: без
+    # этого условия job вечно висел бы в очереди. В форке раскатка пропускается.
+    if: github.repository == 'serg-yalosovetsky/vps-sso'
     # Метка mesh-vps — это раннер на VPS, поднятый специально для этого
     # репозитория. Раннер уровня организации на личном аккаунте невозможен,
     # поэтому у каждого сервиса он свой.

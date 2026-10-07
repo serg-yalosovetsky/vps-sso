@@ -1,0 +1,45 @@
+name: ci
+# Блокирующие проверки: типы, линт, тесты, сборка. В отличие от code-quality.yml
+# здесь нет `|| true` — красный шаг красит прогон. Всё работает без внешних
+# сервисов и секретов, поэтому так же проходит и в форке.
+on:
+  push:
+  pull_request:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: typecheck
+        run: npm run typecheck
+      - name: oxlint
+        run: npx oxlint -c .oxlintrc.json --format=github .
+      - name: tests
+        run: npm test
+      - name: build
+        # Значения фиктивные: сборке нужно только их наличие (src/lib/jwt.ts падает
+        # при импорте без JWT_SECRET). Настоящие ключи в CI не попадают.
+        env:
+          JWT_SECRET: ci-dummy-0123456789abcdef0123456789abcdef
+          COOKIE_DOMAIN: example.com
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+          CLERK_SECRET_KEY: sk_test_dummy
+        run: npm run build
+
+  python:
+    # Python-файлов в репозитории сейчас нет; шаг включится сам, как только появятся.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ruff
+        if: hashFiles('**/*.py') != ''
+        run: |
+          pipx install ruff
+          ruff check --output-format=github .
+          ruff format --check .
