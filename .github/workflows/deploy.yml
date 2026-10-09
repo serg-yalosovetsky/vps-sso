@@ -18,6 +18,9 @@ on:
         description: ревизия для раскатки
         required: false
 
+permissions:
+  contents: read
+
 env:
   SERVICE: vps-sso
   RECEIVER: http://100.66.108.118:9001/hooks/deploy
@@ -76,7 +79,10 @@ jobs:
     needs: gate
     # В форке и в зеркале на Forgejo нет ни self-hosted раннера mesh-vps, ни
     # приёмника meshdeploy: там раскатка пропускается.
-    if: github.repository == 'serg-yalosovetsky/vps-sso'
+    # serg/tasks#1692: этот job идёт на self-hosted раннере меша, а репозиторий
+    # публичный. Только push / ручной запуск И только из default-ветки: ни PR из
+    # форка, ни ручной запуск с чужой ветки не исполняют код на машине меша.
+    if: github.repository == 'serg-yalosovetsky/vps-sso' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     # Метка mesh-vps — это раннер на VPS, поднятый специально для этого
     # репозитория. Раннер уровня организации на личном аккаунте невозможен,
     # поэтому у каждого сервиса он свой.
